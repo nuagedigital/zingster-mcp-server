@@ -9,8 +9,8 @@ import { z } from 'zod';
 
 const MENU = {
   hot_chicken: [
-    { id: 'hc-1', name: 'Classic Hot Chicken Sandwich', price: 12.99, heat: ['Plain','Mild','Medium','Hot','Nashville'] },
-    { id: 'hc-2', name: 'Deluxe Hot Chicken Sandwich', price: 14.99, heat: ['Plain','Mild','Medium','Hot','Nashville'] },
+    { id: 'hc-1', name: 'Classic Hot Chicken Sandwich', price: 12.99, heat: ['Plain', 'Mild', 'Medium', 'Hot', 'Nashville'] },
+    { id: 'hc-2', name: 'Deluxe Hot Chicken Sandwich', price: 14.99, heat: ['Plain', 'Mild', 'Medium', 'Hot', 'Nashville'] },
   ],
   smash_burgers: [
     { id: 'sb-1', name: 'Classic Smash', price: 10.99 },
@@ -32,7 +32,7 @@ const MENU = {
   ],
 };
 
-const HOURS = {
+const HOURS: Record<string, string> = {
   monday: '11:00 AM - 10:00 PM',
   tuesday: '11:00 AM - 10:00 PM',
   wednesday: '11:00 AM - 10:00 PM',
@@ -42,7 +42,7 @@ const HOURS = {
   sunday: '11:00 AM - 9:00 PM',
 };
 
-const callbacks = [];
+const callbacks: Record<string, unknown>[] = [];
 
 const server = new Server(
   { name: 'zingster-mcp', version: '1.0.0' },
@@ -66,11 +66,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     switch (name) {
       case 'get_menu':
         return { content: [{ type: 'text', text: JSON.stringify({ menu: MENU }, null, 2) }] };
+
       case 'get_menu_item': {
         const { name: n } = z.object({ name: z.string() }).parse(args);
         const found = Object.values(MENU).flat().find(i => i.name.toLowerCase().includes(n.toLowerCase()));
         return { content: [{ type: 'text', text: found ? JSON.stringify(found, null, 2) : 'No item ' + n }] };
       }
+
       case 'get_hours': {
         const { day } = z.object({ day: z.string().optional() }).parse(args);
         if (day) {
@@ -79,26 +81,39 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         }
         return { content: [{ type: 'text', text: JSON.stringify(HOURS, null, 2) }] };
       }
+
       case 'place_order': {
-        const o = z.object({ items: z.array(z.object({ name: z.string(), quantity: z.number(), heat: z.string().optional() })), customerName: z.string(), customerPhone: z.string().optional(), pickupTime: z.string().optional() }).parse(args);
+        const o = z.object({
+          items: z.array(z.object({ name: z.string(), quantity: z.number(), heat: z.string().optional() })),
+          customerName: z.string(),
+          customerPhone: z.string().optional(),
+          pickupTime: z.string().optional(),
+        }).parse(args);
         const orderId = 'ZG-' + Date.now().toString().slice(-6);
-        const total = o.items.reduce((s, it) => { const m = Object.values(MENU).flat().find(x => x.name === it.name); return s + ((m?.price || 0) * it.quantity); }, 0);
+        const total = o.items.reduce((s, it) => {
+          const m = Object.values(MENU).flat().find(x => x.name === it.name);
+          return s + ((m?.price || 0) * it.quantity);
+        }, 0);
         console.log('[ORDER]', orderId, o);
         return { content: [{ type: 'text', text: JSON.stringify({ success: true, orderId, estimatedTotal: total.toFixed(2), pickupTime: o.pickupTime || 'ASAP', items: o.items }, null, 2) }] };
       }
+
       case 'request_callback': {
         const r = z.object({ name: z.string(), phone: z.string(), reason: z.string().optional() }).parse(args);
         callbacks.push({ ...r, at: new Date().toISOString() });
         console.log('[CALLBACK]', r);
         return { content: [{ type: 'text', text: 'Got it, ' + r.name + '. We will call you at ' + r.phone + ' shortly.' }] };
       }
+
       case 'is_halal':
         return { content: [{ type: 'text', text: 'Yes - 100% halal.' }] };
+
       default:
         return { content: [{ type: 'text', text: 'Unknown tool: ' + name }], isError: true };
     }
   } catch (err) {
-    return { content: [{ type: 'text', text: 'Error: ' + err.message }], isError: true };
+    const message = err instanceof Error ? err.message : String(err);
+    return { content: [{ type: 'text', text: 'Error: ' + message }], isError: true };
   }
 });
 
